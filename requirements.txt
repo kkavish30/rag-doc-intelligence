@@ -14,3 +14,4 @@ ragas
 datasets 
 python-dotenv
 langchain-groq
+pymupdf

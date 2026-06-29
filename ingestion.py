@@ -1,11 +1,12 @@
 import os
-import pdfplumber
+import fitz
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 import chromadb
 from chromadb.config import Settings
 from dotenv import load_dotenv
 import hashlib
+import re
 
 load_dotenv()
 
@@ -23,23 +24,55 @@ def get_chroma_collection():
     return collection
 
 
-def extract_text_from_pdf(pdf_path: str) -> list[dict]:
+def clean_extracted_text(text: str) -> str:
+    text = re.sub(r'([a-zA-Z])\n([a-zA-Z])', r'\1 \2', text)
+    text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
+    text = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', text)
+    text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text)
+    text = re.sub(r'([,;:])([A-Za-z])', r'\1 \2', text)
+    text = re.sub(r'([●○•])([A-Za-z])', r'\1 \2', text)
+    text = re.sub(r'([a-z]{2,})([A-Z][a-z])', r'\1 \2', text)
+    text = re.sub(r'^\s*[o•●○]\s*$', '', text, flags=re.MULTILINE)
+    text = re.sub(r' +', ' ', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
-    """
-    Returns list of dicts: {text, page_number, doc_name}
-    """
+
+def is_garbage_page(text: str) -> bool:
+    # Page is garbage if same sentence repeats more than 3 times
+    # or if it contains EOS/pad tokens (attention visualization pages)
+    if text.count("<EOS>") > 2:
+        return True
+    if text.count("<pad>") > 2:
+        return True
+    # Check if any single line repeats more than 3 times
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    for line in lines:
+        if len(line) > 10 and lines.count(line) > 3:
+            return True
+    return False
+
+
+def extract_text_from_pdf(pdf_path: str) -> list[dict]:
     pages = []
     doc_name = os.path.basename(pdf_path)
-
-    with pdfplumber.open(pdf_path) as pdf:
-        for page_num, page in enumerate(pdf.pages, start=1):
-            text = page.extract_text()
-            if text and text.strip():
-                pages.append({
-                    "text": text.strip(),
-                    "page_number": page_num,
-                    "doc_name": doc_name
-                })
+    doc = fitz.open(pdf_path)
+    for page_num, page in enumerate(doc, start=1):
+        text = page.get_text("text")
+        if not text or not text.strip():
+            continue
+        text = clean_extracted_text(text)
+        if len(text.strip()) < 100:
+            continue
+        if is_garbage_page(text):
+            print(f"Skipping garbage page {page_num}")
+            continue
+        pages.append({
+            "text": text,
+            "page_number": page_num,
+            "doc_name": doc_name
+        })
+    doc.close()
     return pages
 
 
@@ -75,7 +108,7 @@ def embed_and_store(chunks: list[dict], collection) -> int:
     Returns count of chunks stored.
     """
 
-    embedder = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
+    embedder = HuggingFaceEmbeddings()
 
     texts = [c["text"] for c in chunks]
     ids = [c["chunk_id"] for c in chunks]
