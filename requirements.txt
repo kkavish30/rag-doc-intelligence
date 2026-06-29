@@ -1,0 +1,16 @@
+pdfplumber 
+langchain 
+langchain-core
+langchain-community 
+google-generativeai 
+langchain-google-genai
+chromadb 
+openai 
+rank-bm25 
+torch
+sentence-transformers
+streamlit
+ragas 
+datasets 
+python-dotenv
+langchain-groq
