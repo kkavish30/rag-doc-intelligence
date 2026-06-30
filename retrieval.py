@@ -1,6 +1,7 @@
 import chromadb
 from langchain_huggingface import HuggingFaceEmbeddings
 from rank_bm25 import BM25Okapi
+from sentence_transformers import CrossEncoder
 from dotenv import load_dotenv
 import re
 
@@ -105,10 +106,41 @@ def hybrid_search(query: str, top_k_final: int = 20) -> list[dict]:
     return merged[:top_k_final]
 
 
+_cross_encoder = None
+
+def get_cross_encoder():
+    global _cross_encoder
+    if _cross_encoder is None:
+        print("Loading cross-encoder model...")
+        _cross_encoder = CrossEncoder(
+            "cross-encoder/ms-marco-MiniLM-L-6-v2",
+            max_length=512
+        )
+        print("Cross-encoder loaded.")
+    return _cross_encoder
+
+
+def rerank(query: str, candidates: list[dict], top_n: int = 5) -> list[dict]:
+    cross_encoder = get_cross_encoder()
+    pairs = [(query, c["text"]) for c in candidates]
+    scores = cross_encoder.predict(pairs)
+    for i, candidates in enumerate(candidates):
+        candidates["rerank_score"] = float(scores[i])
+    
+    reranked = sorted(candidates, key=lambda x : x["rerank_score"], reverse=True)
+    return reranked[:top_n]
+
+
+def retrieve_and_rerank(query: str, top_k_retrieval: int = 20, top_n_rerank: int = 5) -> list[dict]:
+    candidates = hybrid_search(query, top_k_final=top_k_retrieval)
+    reranked = rerank(query, candidates, top_n=top_n_rerank)
+    return reranked
+
+
 if __name__ == "__main__":
-    query = "What is the main topic of the document?"
-    results = hybrid_search(query, top_k_final=5)
+    query = "What is the transformer architecture?"
+    results = retrieve_and_rerank(query)
     for i, r in enumerate(results, 1):
-        print(f"\n--- Result {i} (RRF: {r['rrf_score']:.4f}) ---")
+        print(f"\n--- Result {i} (Rerank score: {r['rerank_score']:.4f}) ---")
         print(f"Source: {r['metadata']['doc_name']}, Page {r['metadata']['page_number']}")
-        print(r['text'][:200])
+        print(r['text'][:300])
