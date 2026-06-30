@@ -124,8 +124,8 @@ def rerank(query: str, candidates: list[dict], top_n: int = 5) -> list[dict]:
     cross_encoder = get_cross_encoder()
     pairs = [(query, c["text"]) for c in candidates]
     scores = cross_encoder.predict(pairs)
-    for i, candidates in enumerate(candidates):
-        candidates["rerank_score"] = float(scores[i])
+    for i, candidate in enumerate(candidates):
+        candidate["rerank_score"] = float(scores[i])
     
     reranked = sorted(candidates, key=lambda x : x["rerank_score"], reverse=True)
     return reranked[:top_n]

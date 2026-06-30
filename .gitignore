@@ -7,3 +7,4 @@ __pycache__/
 data/
 debug_retrieval.py
 check.py
+test_guardrail.py
