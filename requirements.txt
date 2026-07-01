@@ -1,7 +1,6 @@
-pdfplumber 
 langchain 
 langchain-core
-langchain-community 
+langchain-community<0.4.0
 google-generativeai 
 langchain-google-genai
 chromadb 

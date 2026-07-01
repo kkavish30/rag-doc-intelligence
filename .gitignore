@@ -8,3 +8,4 @@ data/
 debug_retrieval.py
 check.py
 test_guardrail.py
+test_memory_integration.py
