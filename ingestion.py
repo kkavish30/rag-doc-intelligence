@@ -53,9 +53,9 @@ def is_garbage_page(text: str) -> bool:
     return False
 
 
-def extract_text_from_pdf(pdf_path: str) -> list[dict]:
+def extract_text_from_pdf(pdf_path: str, original_filename: str = None) -> list[dict]:
     pages = []
-    doc_name = os.path.basename(pdf_path)
+    doc_name = original_filename or os.path.basename(pdf_path)
     doc = fitz.open(pdf_path)
     for page_num, page in enumerate(doc, start=1):
         text = page.get_text("text")
@@ -138,18 +138,18 @@ def embed_and_store(chunks: list[dict], collection) -> int:
     return len(chunks)
 
 
-def ingest_pdf(pdf_path: str) -> dict:
+def ingest_pdf(pdf_path: str, original_filename: str = None) -> dict:
     collection = get_chroma_collection()
-    pages = extract_text_from_pdf(pdf_path)
+    pages = extract_text_from_pdf(pdf_path, original_filename=original_filename)
     if not pages:
         return {"status": "error", "message": "No text extracted from PDF"}
     
     chunks = chunk_pages(pages)
     count = embed_and_store(chunks, collection)
-
+    
     return {
         "status": "success",
-        "doc_name": os.path.basename(pdf_path),
+        "doc_name": original_filename or os.path.basename(pdf_path),
         "pages_processed": len(pages),
         "chunks_stored": count
     }
